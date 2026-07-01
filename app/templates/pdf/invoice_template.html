@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice {{ invoice.invoice_number }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1in;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            color: #333;
+            line-height: 1.4;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 1rem;
+        }
+        
+        .business-info h1 {
+            color: #007bff;
+            margin: 0 0 0.5rem 0;
+            font-size: 1.8rem;
+        }
+        
+        .invoice-details {
+            text-align: right;
+        }
+        
+        .invoice-details h2 {
+            color: #007bff;
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+        }
+        
+        .billing-section {
+            display: flex;
+            justify-content: space-between;
+            margin: 2rem 0;
+        }
+        
+        .billing-box {
+            width: 45%;
+        }
+        
+        .billing-box h3 {
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        
+        .line-items {
+            margin: 2rem 0;
+        }
+        
+        .line-items table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+        
+        .line-items th,
+        .line-items td {
+            padding: 0.75rem 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .line-items th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .line-items td.number {
+            text-align: right;
+        }
+        
+        .totals {
+            width: 300px;
+            margin-left: auto;
+            margin-top: 1rem;
+        }
+        
+        .totals table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .totals td {
+            padding: 0.5rem;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .totals .total-row {
+            font-weight: bold;
+            font-size: 1.1rem;
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .notes {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        
+        .footer {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .amount-due {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="business-info">
+            {% if business.logo_url %}
+                <img src="{{ business.logo_url }}" alt="{{ business.name }}" style="max-height: 60px; margin-bottom: 1rem;">
+            {% endif %}
+            <h1>{{ business.name }}</h1>
+            {% if business.address %}
+                <div>{{ business.address | replace('\n', '<br>') | safe }}</div>
+            {% endif %}
+            {% if business.email %}
+                <div>{{ business.email }}</div>
+            {% endif %}
+            {% if business.phone %}
+                <div>{{ business.phone }}</div>
+            {% endif %}
+            {% if business.tax_id %}
+                <div>Tax ID: {{ business.tax_id }}</div>
+            {% endif %}
+        </div>
+        
+        <div class="invoice-details">
+            <h2>INVOICE</h2>
+            <div><strong>Invoice #:</strong> {{ invoice.invoice_number }}</div>
+            <div><strong>Issue Date:</strong> {{ invoice.issue_date.strftime('%B %d, %Y') if invoice.issue_date else '-' }}</div>
+            <div><strong>Due Date:</strong> {{ invoice.due_date.strftime('%B %d, %Y') if invoice.due_date else '-' }}</div>
+            {% if invoice.status != 'draft' %}
+                <div><strong>Status:</strong> {{ invoice.status.title() }}</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Billing Information -->
+    <div class="billing-section">
+        <div class="billing-box">
+            <h3>Bill To:</h3>
+            <div><strong>{{ client.get_display_name() if client.get_display_name else client.name }}</strong></div>
+            {% if client.company_name and client.company_name != client.name %}
+                <div>{{ client.name }}</div>
+            {% endif %}
+            <div>{{ client.email }}</div>
+            {% if client.billing_address %}
+                <div>{{ client.billing_address | replace('\n', '<br>') | safe }}</div>
+            {% endif %}
+            {% if client.phone %}
+                <div>{{ client.phone }}</div>
+            {% endif %}
+        </div>
+        
+        <div class="billing-box">
+            <h3>Amount Due:</h3>
+            <div class="amount-due">
+                ${{ '{:,.2f}'.format(grand_total) }} {{ invoice.currency }}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Line Items -->
+    <div class="line-items">
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th style="text-align: right;">Qty</th>
+                    <th style="text-align: right;">Unit Price</th>
+                    {% if line_items and any(item.tax_rate is not None for item in line_items) %}
+                        <th style="text-align: right;">Tax Rate</th>
+                    {% endif %}
+                    <th style="text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in line_items %}
+                <tr>
+                    <td>{{ item.description }}</td>
+                    <td class="number">{{ '{:g}'.format(item.quantity) }}</td>
+                    <td class="number">${{ '{:,.2f}'.format(item.unit_price) }}</td>
+                    {% if line_items and any(i.tax_rate is not None for i in line_items) %}
+                        <td class="number">
+                            {% if item.tax_rate is not None %}
+                                {{ item.tax_rate }}%
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                    <td class="number">${{ '{:,.2f}'.format(item.line_total) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Totals -->
+        <div class="totals">
+            <table>
+                <tr>
+                    <td>Subtotal:</td>
+                    <td style="text-align: right;">${{ '{:,.2f}'.format(subtotal) }}</td>
+                </tr>
+                {% if tax_total > 0 %}
+                <tr>
+                    <td>Tax:</td>
+                    <td style="text-align: right;">${{ '{:,.2f}'.format(tax_total) }}</td>
+                </tr>
+                {% endif %}
+                {% if discount > 0 %}
+                <tr>
+                    <td>Discount:</td>
+                    <td style="text-align: right;">-${{ '{:,.2f}'.format(discount) }}</td>
+                </tr>
+                {% endif %}
+                <tr class="total-row">
+                    <td>Total:</td>
+                    <td style="text-align: right;">${{ '{:,.2f}'.format(grand_total) }} {{ invoice.currency }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Notes -->
+    {% if invoice.notes %}
+    <div class="notes">
+        <strong>Notes:</strong><br>
+        {{ invoice.notes | replace('\n', '<br>') | safe }}
+    </div>
+    {% endif %}
+    
+    <!-- Footer -->
+    <div class="footer">
+        <div>Thank you for your business!</div>
+        {% if business.name or business.address or business.tax_id %}
+            <div style="margin-top: 1rem;">
+                {{ business.name }}
+                {% if business.address %} • {{ business.address | replace('\n', ' ') }}{% endif %}
+                {% if business.tax_id %} • Tax ID: {{ business.tax_id }}{% endif %}
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
