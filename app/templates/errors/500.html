@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Server Error{% endblock %}
+
+{% block content %}
+<div class="text-center">
+    <h1 class="display-1">500</h1>
+    <p class="fs-3"><span class="text-danger">Server Error!</span></p>
+    <p class="lead">Something went wrong on our end. We're working to fix it.</p>
+    <a href="{{ url_for('web.dashboard.index') if current_user.is_authenticated else url_for('web.auth.login') }}" 
+       class="btn btn-primary">Go Back Home</a>
+</div>
+{% endblock %}
