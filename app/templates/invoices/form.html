@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}{% if invoice %}Edit Invoice {{ invoice.invoice_number }}{% else %}New Invoice{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>{% if invoice %}Edit Invoice {{ invoice.invoice_number }}{% else %}New Invoice{% endif %}</h1>
+    <a href="{{ url_for('web.list_invoices') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Invoices
+    </a>
+</div>
+
+<form method="POST" action="{% if invoice %}{{ url_for('web.update_invoice', invoice_id=invoice.id) }}{% else %}{{ url_for('web.create_invoice') }}{% endif %}">
+    <div class="row">
+        <!-- Invoice Details -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Invoice Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="client_name" class="form-label">Client *</label>
+                        {% if invoice %}
+                        <input type="text" class="form-control" id="client_name" name="client_name" 
+                               value="{{ invoice.client.name }}" readonly>
+                        <input type="hidden" name="client_id" value="{{ invoice.client_id }}">
+                        {% else %}
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="client_name" name="client_name" 
+                                   placeholder="Enter client name..." required autocomplete="off">
+                            <input type="hidden" id="client_id" name="client_id">
+                            <div id="client_dropdown" class="list-group position-absolute" style="display: none; width: 100%; z-index: 1000; max-height: 300px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); top: 100%;">
+                                <div class="list-group-item text-muted small">Start typing to search clients or enter new name</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if not invoice %}
+                    <div class="mb-3" id="client_email_section" style="display: none;">
+                        <label for="client_email" class="form-label">Client Email *</label>
+                        <input type="email" class="form-control" id="client_email" name="client_email" 
+                               placeholder="Enter client email for invoice notifications...">
+                        <small class="form-text text-muted">Email is required for new clients to send invoices</small>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="issue_date" class="form-label">Issue Date *</label>
+                                <input type="date" class="form-control" id="issue_date" name="issue_date" 
+                                    value="{% if invoice %}{{ invoice.issue_date.strftime('%Y-%m-%d') if invoice.issue_date else '' }}{% else %}{% endif %}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="due_date" class="form-label">Due Date *</label>
+                                <input type="date" class="form-control" id="due_date" name="due_date" 
+                                    value="{% if invoice %}{{ invoice.due_date.strftime('%Y-%m-%d') if invoice.due_date else '' }}{% endif %}" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="currency" class="form-label">Currency</label>
+                                <select class="form-select" id="currency" name="currency">
+                                    <option value="USD" {% if not invoice or invoice.currency == 'USD' %}selected{% endif %}>USD</option>
+                                    <option value="EUR" {% if invoice and invoice.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                                    <option value="GBP" {% if invoice and invoice.currency == 'GBP' %}selected{% endif %}>GBP</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="discount" class="form-label">Discount ($)</label>
+                                <input type="number" class="form-control" id="discount" name="discount" 
+                                    min="0" step="0.01" value="{% if invoice %}{{ invoice.discount }}{% else %}0{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Invoice Summary -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Invoice Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-6">Subtotal:</div>
+                        <div class="col-6 text-end">$<span id="subtotal-display">0.00</span></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-6">Tax:</div>
+                        <div class="col-6 text-end">$<span id="tax-display">0.00</span></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-6">Discount:</div>
+                        <div class="col-6 text-end">$<span id="discount-display">0.00</span></div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6"><strong>Total:</strong></div>
+                        <div class="col-6 text-end"><strong>$<span id="total-display">0.00</span></strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Line Items -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Line Items</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="add-line-item">
+                <i class="fas fa-plus"></i> Add Line Item
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="line-items-container">
+                {% if invoice and invoice.line_items %}
+                {% for item in invoice.line_items %}
+                <div class="line-item-row">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Description *</label>
+                            <input type="text" class="form-control" name="line_items[{{ loop.index0 }}][description]" 
+                                value="{{ item.description }}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Quantity *</label>
+                            <input type="number" class="form-control line-quantity" name="line_items[{{ loop.index0 }}][quantity]" 
+                                min="0.001" step="0.001" value="{{ item.quantity }}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Unit Price *</label>
+                            <input type="number" class="form-control line-price" name="line_items[{{ loop.index0 }}][unit_price]" 
+                                min="0" step="0.01" value="{{ item.unit_price }}" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Tax Rate (%)</label>
+                            <input type="number" class="form-control line-tax" name="line_items[{{ loop.index0 }}][tax_rate]" 
+                                min="0" max="100" step="0.01" value="{{ item.tax_rate or '' }}">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Total</label>
+                            <input type="text" class="form-control line-total" readonly value="${{ "%.2f"|format(item.line_total) }}">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="button" class="btn btn-outline-danger btn-sm remove-line-item d-block">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <!-- Default first line item -->
+                <div class="line-item-row">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Description *</label>
+                            <input type="text" class="form-control" name="line_items[0][description]" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Quantity *</label>
+                            <input type="number" class="form-control line-quantity" name="line_items[0][quantity]" 
+                                min="0.001" step="0.001" value="1" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Unit Price *</label>
+                            <input type="number" class="form-control line-price" name="line_items[0][unit_price]" 
+                                min="0" step="0.01" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Tax Rate (%)</label>
+                            <input type="number" class="form-control line-tax" name="line_items[0][tax_rate]" 
+                                min="0" max="100" step="0.01">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Total</label>
+                            <input type="text" class="form-control line-total" readonly value="$0.00">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="button" class="btn btn-outline-danger btn-sm remove-line-item d-block">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Notes</h5>
+        </div>
+        <div class="card-body">
+            <textarea class="form-control" name="notes" rows="3" placeholder="Additional notes for the client...">{% if invoice %}{{ invoice.notes }}{% endif %}</textarea>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex justify-content-between">
+        <a href="{{ url_for('web.list_invoices') }}" class="btn btn-secondary">Cancel</a>
+        <div>
+            <button type="submit" class="btn btn-primary">
+                {% if invoice %}Update Invoice{% else %}Create Invoice{% endif %}
+            </button>
+        </div>
+    </div>
+</form>
+
+<script>
+// Set default due date to 30 days from issue date
+document.getElementById('issue_date').addEventListener('change', function() {
+    const issueDate = new Date(this.value);
+    const dueDate = new Date(issueDate);
+    dueDate.setDate(dueDate.getDate() + 30);
+    
+    const dueDateInput = document.getElementById('due_date');
+    if (!dueDateInput.value) {
+        dueDateInput.value = dueDate.toISOString().split('T')[0];
+    }
+});
+
+// Set default issue date to today if empty
+if (!document.getElementById('issue_date').value) {
+    document.getElementById('issue_date').value = new Date().toISOString().split('T')[0];
+    
+    // Set default due date
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    document.getElementById('due_date').value = dueDate.toISOString().split('T')[0];
+}
+
+// Client autocomplete functionality (only for new invoices)
+{% if not invoice %}
+const clients = [
+    {% for client in clients %}
+    {
+        id: {{ client.id }},
+        name: {{ client.name|tojson }},
+        email: {{ client.email|tojson }},
+        company_name: {{ client.company_name|tojson if client.company_name else 'null' }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+const clientNameInput = document.getElementById('client_name');
+const clientIdInput = document.getElementById('client_id');
+const clientEmailSection = document.getElementById('client_email_section');
+const clientEmailInput = document.getElementById('client_email');
+const dropdown = document.getElementById('client_dropdown');
+
+let selectedClientIndex = -1;
+
+clientNameInput.addEventListener('input', function() {
+    const query = this.value.toLowerCase().trim();
+    dropdown.innerHTML = '';
+    selectedClientIndex = -1;
+    
+    if (query.length === 0) {
+        dropdown.style.display = 'none';
+        clientIdInput.value = '';
+        clientEmailSection.style.display = 'none';
+        return;
+    }
+    
+    const filteredClients = clients.filter(client => 
+        client.name.toLowerCase().includes(query)
+    );
+    
+    // Show existing clients that match
+    filteredClients.forEach((client, index) => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item list-group-item-action';
+        item.style.cursor = 'pointer';
+        item.innerHTML = `<strong>${client.name}</strong><br><small class="text-muted">${client.email || 'No email'}</small>`;
+        item.onclick = () => selectClient(client);
+        dropdown.appendChild(item);
+    });
+    
+    // Show option to create new client if no exact match
+    const exactMatch = filteredClients.find(client => 
+        client.name.toLowerCase() === query
+    );
+    
+    if (!exactMatch && query.length > 0) {
+        const item = document.createElement('div');
+        item.className = 'list-group-item list-group-item-action text-primary';
+        item.style.cursor = 'pointer';
+        item.innerHTML = `<i class="fas fa-plus"></i> Create new client: <strong>${this.value}</strong>`;
+        item.onclick = () => selectNewClient(this.value);
+        dropdown.appendChild(item);
+    }
+    
+    if (dropdown.children.length > 0) {
+        dropdown.style.display = 'block';
+    } else {
+        dropdown.style.display = 'none';
+    }
+});
+
+function selectClient(client) {
+    clientNameInput.value = client.name;
+    clientIdInput.value = client.id;
+    clientEmailSection.style.display = 'none';
+    dropdown.style.display = 'none';
+}
+
+function selectNewClient(name) {
+    clientNameInput.value = name;
+    clientIdInput.value = '';
+    clientEmailSection.style.display = 'block';
+    clientEmailInput.required = true;
+    dropdown.style.display = 'none';
+}
+
+// Hide dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!clientNameInput.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+{% endif %}
+</script>
+{% endblock %}
