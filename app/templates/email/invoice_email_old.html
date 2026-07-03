@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Invoice {{ invoice.invoice_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: {{ business.accent_color or '#007bff' }};
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        .content {
+            background-color: #f8f9fa;
+            padding: 30px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+        }
+        .invoice-details {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .button {
+            display: inline-block;
+            background-color: {{ business.accent_color or '#007bff' }};
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ business.name }}</h1>
+        <p>Invoice {{ invoice.invoice_number }}</p>
+    </div>
+    
+    <div class="content">
+        <p>Dear {{ client.name }},</p>
+        
+        <p>Please find attached your invoice for ${{ '{:,.2f}'.format(invoice.grand_total) }} {{ invoice.currency }}.</p>
+        
+        <div class="invoice-details">
+            <h3>Invoice Details</h3>
+            <ul>
+                <li><strong>Invoice Number:</strong> {{ invoice.invoice_number }}</li>
+                <li><strong>Issue Date:</strong> {{ invoice.issue_date.strftime('%B %d, %Y') }}</li>
+                <li><strong>Due Date:</strong> {{ invoice.due_date.strftime('%B %d, %Y') }}</li>
+                <li><strong>Amount:</strong> ${{ '{:,.2f}'.format(invoice.grand_total) }} {{ invoice.currency }}</li>
+            </ul>
+        </div>
+        
+        {% if custom_message %}
+        <div style="background-color: white; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <h4>Message:</h4>
+            <p>{{ custom_message }}</p>
+        </div>
+        {% endif %}
+        
+        {% if public_link %}
+        <p>You can also view this invoice online:</p>
+        <a href="{{ public_link }}" class="button">View Invoice Online</a>
+        {% endif %}
+        
+        <p>Thank you for your business!</p>
+        
+        <p>Best regards,<br>
+        {{ business.name }}</p>
+        
+        {% if business.address %}
+        <p style="font-size: 0.9em; color: #666;">
+            {{ business.address | replace('\n', '<br>') | safe }}
+        </p>
+        {% endif %}
+    </div>
+    
+    <div class="footer">
+        <p>This is an automated message from {{ business.name }}.</p>
+        {% if business.tax_id %}
+        <p>Tax ID: {{ business.tax_id }}</p>
+        {% endif %}
+    </div>
+</body>
+</html>
