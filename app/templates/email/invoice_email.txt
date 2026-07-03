@@ -1,0 +1,23 @@
+Invoice {{ invoice.invoice_number }} from {{ business.name }}
+
+Dear {{ client.name }},
+
+{% if custom_message %}{{ custom_message }}
+
+{% endif %}Please find your invoice attached for ${{ invoice.grand_total }} {{ invoice.currency }}.
+
+Invoice Details:
+- Invoice Number: {{ invoice.invoice_number }}
+- Issue Date: {{ invoice.issue_date.strftime('%B %d, %Y') if invoice.issue_date else 'N/A' }}
+- Due Date: {{ invoice.due_date.strftime('%B %d, %Y') if invoice.due_date else 'N/A' }}
+- Total Amount: ${{ invoice.grand_total }} {{ invoice.currency }}
+
+You can also view this invoice online at:
+{{ public_link }}
+
+Thank you for your business!
+
+Best regards,
+{{ business.name }}
+{% if business.email %}{{ business.email }}{% endif %}
+{% if business.phone %}{{ business.phone }}{% endif %}
